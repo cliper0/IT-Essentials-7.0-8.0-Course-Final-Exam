@@ -152,25 +152,22 @@
     });
   });
 
-// Načtení JSON
-  fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        allQuestions = JSON.parse(event.target.result);
-        if (Array.isArray(allQuestions) && allQuestions.length > 0) {
-          startBtn.disabled = false;
-          startBtn.innerText = `Začít (${allQuestions.length} otázek připraveno)`;
-        } else {
-          alert('Soubor neobsahuje žádné validní otázky.');
-        }
-      } catch (err) {
-        alert('Chyba při čtení JSON souboru: ' + err.message);
-      }
-    };
-    reader.readAsText(file);
+// Automatické načtení přímo z repozitáře
+  window.addEventListener('DOMContentLoaded', () => {
+    fetch('questions.json')
+      .then(res => {
+        if (!res.ok) throw new Error('Nelze načíst soubor questions.json');
+        return res.json();
+      })
+      .then(data => {
+        allQuestions = data;
+        startBtn.disabled = false;
+        startBtn.innerText = `Začít (${allQuestions.length} otázek připraveno)`;
+      })
+      .catch(err => {
+        console.error(err);
+        startBtn.innerText = 'Chyba při stahování otázek';
+      });
   });
 
   startBtn.addEventListener('click', () => {
