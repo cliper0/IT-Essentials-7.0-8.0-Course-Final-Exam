@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>IT Essentials - Autoškola trenažér</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --primary: #38bdf8;
+      --success: #22c55e;
+      --error: #ef4444;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
+    .container { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 20px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+    h1 { font-size: 1.5rem; color: var(--primary); margin-bottom: 12px; }
+    .btn { background: var(--primary); color: #0f172a; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .btn-secondary { background: transparent; color: var(--subtext); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); color: var(--text); }
+    .mode-select { display: flex; gap: 10px; margin-bottom: 15px; }
+    .mode-select button { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #0f172a; color: var(--text); cursor: pointer; font-weight: bold; }
+    .mode-select button.active { border-color: var(--primary); background: #0369a1; }
+    .progress-bar { height: 8px; background: #0f172a; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
+    .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.2s; }
+    .meta-bar { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--subtext); margin-bottom: 15px; }
+    .q-text { font-size: 1.15rem; font-weight: 600; margin-bottom: 15px; line-height: 1.5; }
+    .q-img { max-width: 100%; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
+    .options-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+    .option-item { border: 1px solid var(--border); background: #0f172a; padding: 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: 0.15s; }
+    .option-item:hover { border-color: var(--subtext); }
+    .option-item.selected { border-color: var(--primary); background: #1e3a5f; }
+    .option-item.correct { border-color: var(--success); background: #064e3b; color: #a7f3d0; }
+    .option-item.wrong { border-color: var(--error); background: #7f1d1d; color: #fecaca; }
+    .explanation-box { background: #0f172a; border-left: 4px solid var(--primary); padding: 12px 16px; border-radius: 4px; font-size: 0.92rem; color: var(--subtext); margin-bottom: 18px; line-height: 1.5; }
+    .footer { display: flex; justify-content: space-between; align-items: center; }
+    .feedback { font-weight: bold; font-size: 1rem; }
+    .feedback.ok { color: var(--success); }
+    .feedback.err { color: var(--error); }
+    .hidden { display: none !important; }
+    .stat-box { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0; }
+    .stat-item { background: #0f172a; padding: 15px; border-radius: 8px; text-align: center; }
+    .stat-item span { font-size: 1.8rem; font-weight: bold; display: block; }
+    #fileInput { margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- START PANEL -->
+  <div id="setup-panel" class="card">
+    <h1>IT Essentials Test Trenažér</h1>
+    <p style="color: var(--subtext); margin-bottom: 20px;">Trénuj otázky ve stylu autoškoly.</p>
+    
+    <div style="margin-bottom: 20px;">
+      <label>1. Nahraj stažený soubor <b>questions.json</b>:</label><br>
+      <input type="file" id="fileInput" accept=".json">
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px;">2. Vyber režim:</label>
+      <div class="mode-select">
+        <button type="button" class="mode-btn active" data-mode="drill">Drill (okamžité odpovědi)</button>
+        <button type="button" class="mode-btn" data-mode="exam">Ostrý test (vyhodnocení až na konci)</button>
+      </div>
+    </div>
+
+    <div id="exam-opts" class="hidden" style="margin-bottom: 20px;">
+      <label>Počet náhodných otázek v testu:</label>
+      <input type="number" id="examCount" value="30" min="5" max="200" style="padding: 6px; background: #0f172a; border: 1px solid var(--border); color: #fff; border-radius: 4px; width: 80px;">
+    </div>
+
+    <button id="startBtn" class="btn" style="width: 100%;" disabled>Začít procvičovat</button>
+  </div>
+
+  <!-- QUIZ PANEL -->
+  <div id="quiz-panel" class="card hidden">
+    <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+    
+    <div class="meta-bar">
+      <span id="counter">Otázka 1/X</span>
+      <span id="scoreTracker">Úspěšnost: 0%</span>
+    </div>
+
+    <div id="qText" class="q-text">Otázka...</div>
+    <img id="qImg" class="q-img hidden" src="" alt="Otázka k obrázku">
+
+    <div id="optionsContainer" class="options-grid"></div>
+    <div id="explanationBox" class="explanation-box hidden"></div>
+
+    <div class="footer">
+      <div id="feedback" class="feedback"></div>
+      <div style="display: flex; gap: 8px;">
+        <button id="checkBtn" class="btn">Zkontrolovat</button>
+        <button id="nextBtn" class="btn hidden">Další otázka &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESULT PANEL -->
+  <div id="result-panel" class="card hidden" style="text-align: center;">
+    <h1>Dokončeno!</h1>
+    <div class="stat-box">
+      <div class="stat-item"><span id="resScore" style="color: var(--primary);">0</span>Správně</div>
+      <div class="stat-item"><span id="resTotal">0</span>Z celkem</div>
+    </div>
+    <p id="resPercent" style="font-size: 1.3rem; font-weight: bold; margin-bottom: 20px;">0 %</p>
+    <div style="display: flex; gap: 10px; justify-content: center;">
+      <button id="restartBtn" class="btn">Zkusit znovu</button>
+      <button id="repeatErrorsBtn" class="btn btn-secondary hidden">Zopakovat jen chyby</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let allQuestions = [];
+  let testPool = [];
+  let currentIndex = 0;
+  let score = 0;
+  let mode = 'drill';
+  let wrongQuestions = [];
+
+  const fileInput = document.getElementById('fileInput');
+  const startBtn = document.getElementById('startBtn');
+  const setupPanel = document.getElementById('setup-panel');
+  const quizPanel = document.getElementById('quiz-panel');
+  const resultPanel = document.getElementById('result-panel');
+  const qText = document.getElementById('qText');
+  const qImg = document.getElementById('qImg');
+  const optionsContainer = document.getElementById('optionsContainer');
+  const explanationBox = document.getElementById('explanationBox');
+  const checkBtn = document.getElementById('checkBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const feedback = document.getElementById('feedback');
+  const counter = document.getElementById('counter');
+  const scoreTracker = document.getElementById('scoreTracker');
+  const progressFill = document.getElementById('progressFill');
+
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      mode = btn.dataset.mode;
+      document.getElementById('exam-opts').classList.toggle('hidden', mode !== 'exam');
+    });
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        allQuestions = JSON.parse(event.target.result);
+        if (Array.isArray(allQuestions) && allQuestions.length > 0) {
+          startBtn.disabled = false;
+          startBtn.innerText = `Začít (${allQuestions.length} otázek připraveno)`;
+        } else {
+          alert('Soubor neobsahuje žádné validní otázky.');
+        }
+      } catch (err) {
+        alert('Chyba při čtení JSON souboru: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  startBtn.addEventListener('click', () => {
+    if (mode === 'exam') {
+      const count = parseInt(document.getElementById('examCount').value) || 30;
+      testPool = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, count);
+    } else {
+      testPool = [...allQuestions];
+    }
+    startQuiz(testPool);
+  });
+
+  function startQuiz(pool) {
+    testPool = pool;
+    currentIndex = 0;
+    score = 0;
+    wrongQuestions = [];
+    setupPanel.classList.add('hidden');
+    resultPanel.classList.add('hidden');
+    quizPanel.classList.remove('hidden');
+    loadQuestion();
+  }
+
+  function loadQuestion() {
+    feedback.innerText = '';
+    feedback.className = 'feedback';
+    explanationBox.classList.add('hidden');
+    explanationBox.innerHTML = '';
+    nextBtn.classList.add('hidden');
+    checkBtn.classList.remove('hidden');
+
+    const q = testPool[currentIndex];
+    qText.innerText = `${currentIndex + 1}. ${q.question}`;
+
+    if (q.image) {
+      qImg.src = q.image;
+      qImg.classList.remove('hidden');
+    } else {
+      qImg.classList.add('hidden');
+    }
+
+    counter.innerText = `Otázka ${currentIndex + 1} / ${testPool.length}`;
+    progressFill.style.width = `${((currentIndex) / testPool.length) * 100}%`;
+    if (mode === 'drill') {
+      scoreTracker.innerText = currentIndex === 0 ? 'Úspěšnost: 0%' : `Úspěšnost: ${Math.round((score / currentIndex) * 100)}%`;
+    } else {
+      scoreTracker.innerText = `Režim testu`;
+    }
+
+    optionsContainer.innerHTML = '';
+    const isMultiple = q.correct.length > 1;
+
+    q.options.forEach((opt, idx) => {
+      const div = document.createElement('div');
+      div.className = 'option-item';
+      div.innerHTML = `
+        <input type="${isMultiple ? 'checkbox' : 'radio'}" name="opt" id="opt_${idx}">
+        <label for="opt_${idx}" style="cursor: pointer; width: 100%;">${opt}</label>
+      `;
+      div.addEventListener('click', (e) => {
+        if (div.classList.contains('locked')) return;
+        const input = div.querySelector('input');
+        if (e.target !== input) {
+          input.checked = !input.checked;
+        }
+        if (!isMultiple) {
+          document.querySelectorAll('.option-item').forEach(el => el.classList.remove('selected'));
+        }
+        div.classList.toggle('selected', input.checked);
+      });
+      optionsContainer.appendChild(div);
+    });
+
+    if (mode === 'exam') {
+      checkBtn.innerText = currentIndex === testPool.length - 1 ? 'Ukončit a vyhodnotit' : 'Další otázka';
+    } else {
+      checkBtn.innerText = 'Zkontrolovat';
+    }
+  }
+
+  checkBtn.addEventListener('click', () => {
+    const q = testPool[currentIndex];
+    const selectedOptions = [];
+    const items = document.querySelectorAll('.option-item');
+
+    items.forEach((item, idx) => {
+      if (item.querySelector('input').checked) {
+        selectedOptions.push(q.options[idx]);
+      }
+    });
+
+    if (selectedOptions.length === 0) {
+      alert('Vyber alespoň jednu možnost!');
+      return;
+    }
+
+    const isCorrect = 
+      selectedOptions.length === q.correct.length &&
+      selectedOptions.every(opt => q.correct.includes(opt));
+
+    if (mode === 'drill') {
+      items.forEach((item, idx) => {
+        item.classList.add('locked');
+        const text = q.options[idx];
+        if (q.correct.includes(text)) {
+          item.classList.add('correct');
+        } else if (item.querySelector('input').checked) {
+          item.classList.add('wrong');
+        }
+      });
+
+      if (isCorrect) {
+        score++;
+        feedback.innerText = 'Správně!';
+        feedback.className = 'feedback ok';
+      } else {
+        wrongQuestions.push(q);
+        feedback.innerText = 'Špatně!';
+        feedback.className = 'feedback err';
+      }
+
+      // Zobrazení vysvětlení, pokud u otázky existuje
+      if (q.explanation) {
+        explanationBox.innerHTML = `<b>Explanation:</b> ${q.explanation}`;
+        explanationBox.classList.remove('hidden');
+      }
+
+      checkBtn.classList.add('hidden');
+      nextBtn.classList.remove('hidden');
+    } else {
+      if (isCorrect) score++;
+      else wrongQuestions.push(q);
+
+      advanceQuestion();
+    }
+  });
+
+  nextBtn.addEventListener('click', advanceQuestion);
+
+  function advanceQuestion() {
+    currentIndex++;
+    if (currentIndex < testPool.length) {
+      loadQuestion();
+    } else {
+      showResults();
+    }
+  }
+
+  function showResults() {
+    quizPanel.classList.add('hidden');
+    resultPanel.classList.remove('hidden');
+
+    const total = testPool.length;
+    const percent = Math.round((score / total) * 100);
+
+    document.getElementById('resScore').innerText = score;
+    document.getElementById('resTotal').innerText = total;
+    const resPercent = document.getElementById('resPercent');
+    resPercent.innerText = `${percent} %`;
+
+    if (percent >= 75) {
+      resPercent.style.color = 'var(--success)';
+      resPercent.innerText += ' (SPLNĚNO)';
+    } else {
+      resPercent.style.color = 'var(--error)';
+      resPercent.innerText += ' (NESPLNĚNO)';
+    }
+
+    const repBtn = document.getElementById('repeatErrorsBtn');
+    if (wrongQuestions.length > 0) {
+      repBtn.classList.remove('hidden');
+      repBtn.innerText = `Procvičit chyby (${wrongQuestions.length})`;
+    } else {
+      repBtn.classList.add('hidden');
+    }
+  }
+
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    resultPanel.classList.add('hidden');
+    setupPanel.classList.remove('hidden');
+  });
+
+  document.getElementById('repeatErrorsBtn').addEventListener('click', () => {
+    mode = 'drill';
+    startQuiz([...wrongQuestions]);
+  });
+</script>
+</body>
+</html>
