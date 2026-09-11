@@ -13,6 +13,7 @@
       --primary: #38bdf8;
       --success: #22c55e;
       --error: #ef4444;
+      --warning: #f59e0b;
       --border: #334155;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
@@ -25,12 +26,15 @@
     .btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .btn-secondary { background: transparent; color: var(--subtext); border: 1px solid var(--border); }
     .btn-secondary:hover { background: var(--border); color: var(--text); }
-    .mode-select { display: flex; gap: 10px; margin-bottom: 15px; }
+    .btn-bookmark { background: #334155; color: var(--text); border: 1px solid var(--border); padding: 6px 12px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-bookmark.active { background: #b45309; border-color: var(--warning); color: #fff; }
+    .mode-select { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; }
+    @media (min-width: 500px) { .mode-select { flex-direction: row; } }
     .mode-select button { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: #0f172a; color: var(--text); cursor: pointer; font-weight: bold; }
     .mode-select button.active { border-color: var(--primary); background: #0369a1; }
     .progress-bar { height: 8px; background: #0f172a; border-radius: 4px; overflow: hidden; margin-bottom: 15px; }
     .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.2s; }
-    .meta-bar { display: flex; justify-content: space-between; font-size: 0.9rem; color: var(--subtext); margin-bottom: 15px; }
+    .meta-bar { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: var(--subtext); margin-bottom: 15px; }
     .q-text { font-size: 1.1rem; font-weight: 600; margin-bottom: 15px; line-height: 1.5; }
     .q-img { max-width: 100%; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
     .options-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
@@ -40,8 +44,6 @@
     .option-item.correct { border-color: var(--success); background: #064e3b; color: #a7f3d0; }
     .option-item.wrong { border-color: var(--error); background: #7f1d1d; color: #fecaca; }
     .explanation-box { background: #0f172a; border-left: 4px solid var(--primary); padding: 12px; border-radius: 4px; font-size: 0.9rem; color: var(--subtext); margin-bottom: 15px; line-height: 1.5; }
-    
-    /* Navigační lišta */
     .nav-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .nav-actions { display: flex; gap: 8px; }
     .feedback { font-weight: bold; font-size: 1rem; width: 100%; margin-bottom: 8px; }
@@ -62,9 +64,10 @@
     <p id="loadingStatus" style="color: var(--subtext); margin-bottom: 20px;">Načítám otázky...</p>
 
     <div style="margin-bottom: 20px;">
-      <label style="display: block; margin-bottom: 8px;">Režim:</label>
+      <label style="display: block; margin-bottom: 8px;">Zvolit režim:</label>
       <div class="mode-select">
-        <button type="button" class="mode-btn active" data-mode="drill">Drill (procvičování)</button>
+        <button type="button" class="mode-btn active" data-mode="drill">Drill (vše)</button>
+        <button type="button" class="mode-btn" data-mode="custom" id="savedModeBtn">Uložené otázky (0)</button>
         <button type="button" class="mode-btn" data-mode="exam">Ostrý test</button>
       </div>
     </div>
@@ -83,7 +86,7 @@
     
     <div class="meta-bar">
       <span id="counter">Otázka 1/X</span>
-      <span id="scoreTracker">Skóre: 0</span>
+      <button id="bookmarkBtn" class="btn-bookmark">⭐ Uložit do Neumím</button>
     </div>
 
     <div id="qText" class="q-text">Otázka...</div>
@@ -111,8 +114,8 @@
       <div class="stat-item"><span id="resTotal">0</span>Otázek celkem</div>
     </div>
     <p id="resPercent" style="font-size: 1.3rem; font-weight: bold; margin-bottom: 20px;">0 %</p>
-    <div style="display: flex; gap: 10px; justify-content: center;">
-      <button id="restartBtn" class="btn">Domů</button>
+    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+      <button id="restartBtn" class="btn">Zpět do menu</button>
       <button id="repeatErrorsBtn" class="btn btn-secondary hidden">Procvičit jen chyby</button>
     </div>
   </div>
@@ -123,9 +126,10 @@
   let testPool = [];
   let currentIndex = 0;
   let mode = 'drill';
-  
-  // Ukládání stavu pro každou otázku: { selected: [indexy], checked: bool, isCorrect: bool }
   let userProgress = {};
+
+  // Správa uložených otázek v paměti prohlížeče
+  let savedQuestionIds = JSON.parse(localStorage.getItem('ite_saved_questions') || '[]');
 
   const startBtn = document.getElementById('startBtn');
   const loadingStatus = document.getElementById('loadingStatus');
@@ -141,10 +145,16 @@
   const nextBtn = document.getElementById('nextBtn');
   const feedback = document.getElementById('feedback');
   const counter = document.getElementById('counter');
-  const scoreTracker = document.getElementById('scoreTracker');
   const progressFill = document.getElementById('progressFill');
+  const bookmarkBtn = document.getElementById('bookmarkBtn');
+  const savedModeBtn = document.getElementById('savedModeBtn');
 
-  // Automatické stažení JSON
+  function updateSavedCount() {
+    savedModeBtn.innerText = `Uložené otázky (${savedQuestionIds.length})`;
+  }
+  updateSavedCount();
+
+  // Načtení questions.json
   window.addEventListener('DOMContentLoaded', () => {
     fetch('questions.json')
       .then(res => {
@@ -171,8 +181,35 @@
     });
   });
 
+  // Ukládání otázky tlačítkem ⭐
+  bookmarkBtn.addEventListener('click', () => {
+    const q = testPool[currentIndex];
+    const qKey = q.question; // unikátní klíč otázky
+    const idx = savedQuestionIds.indexOf(qKey);
+
+    if (idx > -1) {
+      savedQuestionIds.splice(idx, 1);
+      bookmarkBtn.classList.remove('active');
+      bookmarkBtn.innerText = '⭐ Uložit do Neumím';
+    } else {
+      savedQuestionIds.push(qKey);
+      bookmarkBtn.classList.add('active');
+      bookmarkBtn.innerText = '★ Uloženo v Neumím';
+    }
+
+    localStorage.setItem('ite_saved_questions', JSON.stringify(savedQuestionIds));
+    updateSavedCount();
+  });
+
   startBtn.addEventListener('click', () => {
-    if (mode === 'exam') {
+    if (mode === 'custom') {
+      const savedPool = allQuestions.filter(q => savedQuestionIds.includes(q.question));
+      if (savedPool.length === 0) {
+        alert('Zatím nemáš uložené žádné otázky. Při procvičování klikni na tlačítko "⭐ Uložit do Neumím".');
+        return;
+      }
+      testPool = [...savedPool];
+    } else if (mode === 'exam') {
       const count = parseInt(document.getElementById('examCount').value) || 30;
       testPool = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, count);
     } else {
@@ -195,17 +232,9 @@
     const q = testPool[currentIndex];
     const state = userProgress[currentIndex] || { selected: [], checked: false, isCorrect: false };
 
-    // Tlačítko Předchozí
     prevBtn.disabled = (currentIndex === 0);
+    nextBtn.innerText = (currentIndex === testPool.length - 1) ? 'Ukončit' : 'Další \u2192';
 
-    // Tlačítko Další text
-    if (currentIndex === testPool.length - 1) {
-      nextBtn.innerText = (mode === 'exam') ? 'Ukončit test' : 'Ukončit';
-    } else {
-      nextBtn.innerText = 'Další \u2192';
-    }
-
-    // Text & Obrázek
     qText.innerText = `${currentIndex + 1}. ${q.question}`;
     if (q.image) {
       qImg.src = q.image;
@@ -214,19 +243,22 @@
       qImg.classList.add('hidden');
     }
 
-    // Počítadlo & Progress
+    // Aktualizace stavu hvězdičky/záložky
+    if (savedQuestionIds.includes(q.question)) {
+      bookmarkBtn.classList.add('active');
+      bookmarkBtn.innerText = '★ Uloženo v Neumím';
+    } else {
+      bookmarkBtn.classList.remove('active');
+      bookmarkBtn.innerText = '⭐ Uložit do Neumím';
+    }
+
     counter.innerText = `Otázka ${currentIndex + 1} / ${testPool.length}`;
     progressFill.style.width = `${((currentIndex + 1) / testPool.length) * 100}%`;
 
-    const correctTotal = Object.values(userProgress).filter(p => p.checked && p.isCorrect).length;
-    scoreTracker.innerText = (mode === 'drill') ? `Správně: ${correctTotal}` : `Režim testu`;
-
-    // Reset feedbacku a explanation
     feedback.innerText = '';
     feedback.className = 'feedback';
     explanationBox.classList.add('hidden');
 
-    // Vykreslení možností
     optionsContainer.innerHTML = '';
     const isMultiple = q.correct.length > 1;
 
@@ -234,23 +266,21 @@
       const div = document.createElement('div');
       div.className = 'option-item';
       const isChecked = state.selected.includes(idx);
-      
       if (isChecked) div.classList.add('selected');
 
-      // Pokud již byla zkontrolována v Drill režimu
-      if (state.checked && mode === 'drill') {
+      if (state.checked && mode !== 'exam') {
         div.classList.add('locked');
         if (q.correct.includes(opt)) div.classList.add('correct');
         else if (isChecked) div.classList.add('wrong');
       }
 
       div.innerHTML = `
-        <input type="${isMultiple ? 'checkbox' : 'radio'}" name="opt" id="opt_${idx}" ${isChecked ? 'checked' : ''} ${state.checked && mode === 'drill' ? 'disabled' : ''}>
+        <input type="${isMultiple ? 'checkbox' : 'radio'}" name="opt" id="opt_${idx}" ${isChecked ? 'checked' : ''} ${state.checked && mode !== 'exam' ? 'disabled' : ''}>
         <label for="opt_${idx}" style="cursor: pointer; width: 100%;">${opt}</label>
       `;
 
       div.addEventListener('click', (e) => {
-        if (state.checked && mode === 'drill') return;
+        if (state.checked && mode !== 'exam') return;
         const input = div.querySelector('input');
         if (e.target !== input) input.checked = !input.checked;
 
@@ -271,8 +301,7 @@
       optionsContainer.appendChild(div);
     });
 
-    // Zobrazení výsledku, pokud už se otázka kontrolovala
-    if (state.checked && mode === 'drill') {
+    if (state.checked && mode !== 'exam') {
       checkBtn.classList.add('hidden');
       if (state.isCorrect) {
         feedback.innerText = 'Správně!';
@@ -287,7 +316,7 @@
       }
     } else {
       checkBtn.classList.remove('hidden');
-      if (mode === 'exam') checkBtn.classList.add('hidden'); // V examu není potřeba tlačítko kontroly, stačí jít Další
+      if (mode === 'exam') checkBtn.classList.add('hidden');
     }
   }
 
@@ -366,7 +395,7 @@
     const repBtn = document.getElementById('repeatErrorsBtn');
     if (wrongList.length > 0) {
       repBtn.classList.remove('hidden');
-      repBtn.innerText = `Procvičit chyby (${wrongList.length})`;
+      repBtn.innerText = `Procvičit jen chyby (${wrongList.length})`;
       repBtn.onclick = () => {
         mode = 'drill';
         startQuiz([...wrongList]);
@@ -377,6 +406,7 @@
   }
 
   document.getElementById('restartBtn').addEventListener('click', () => {
+    updateSavedCount();
     resultPanel.classList.add('hidden');
     setupPanel.classList.remove('hidden');
   });
